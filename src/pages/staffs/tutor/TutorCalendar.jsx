@@ -30,6 +30,28 @@ const BackIcon = () => (
   </svg>
 );
 
+// Official Tutorial Center African Time Zone (West Africa Time / UTC+1)
+const AFRICAN_TIMEZONE = "Africa/Lagos";
+
+// Helper to get African Date in YYYY-MM-DD format strictly tied to Africa/Lagos
+const getAfricanDateYMD = (dateInput) => {
+  if (!dateInput) return "";
+  if (typeof dateInput === "string") {
+    const rawDatePart = dateInput.split("T")[0].split(" ")[0];
+    if (/^\d{4}-\d{2}-\d{2}$/.test(rawDatePart)) {
+      return rawDatePart;
+    }
+  }
+  const d = new Date(dateInput);
+  if (isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: AFRICAN_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+};
+
 const DAYS_OF_WEEK = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -191,7 +213,7 @@ export default function TutorCalendar() {
   const fetchSchedule = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/tutor/classes/schedule`, {
+      const res = await axios.get(`${API_BASE_URL}/api/tutor/classes/schedule?all=true`, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       const flatList = getFlatSessions(res.data || {});
@@ -331,25 +353,16 @@ export default function TutorCalendar() {
 
   // Sessions Filtering
   const getSessionsForDate = useCallback((date) => {
+    const targetYMD = getAfricanDateYMD(date);
     return sessions.filter((s) => {
-      const sDate = new Date(s.session_date);
-      return (
-        sDate.getFullYear() === date.getFullYear() &&
-        sDate.getMonth() === date.getMonth() &&
-        sDate.getDate() === date.getDate()
-      );
+      return getAfricanDateYMD(s.session_date) === targetYMD;
     });
   }, [sessions]);
 
   const getSessionsForDateAndHour = useCallback((date, hour) => {
+    const targetYMD = getAfricanDateYMD(date);
     return sessions.filter((s) => {
-      const sDate = new Date(s.session_date);
-      const sameDay = (
-        sDate.getFullYear() === date.getFullYear() &&
-        sDate.getMonth() === date.getMonth() &&
-        sDate.getDate() === date.getDate()
-      );
-      if (!sameDay) return false;
+      if (getAfricanDateYMD(s.session_date) !== targetYMD) return false;
       const startHour = parseInt((s.starts_at || "00:00").split(":")[0], 10);
       return startHour === hour;
     });

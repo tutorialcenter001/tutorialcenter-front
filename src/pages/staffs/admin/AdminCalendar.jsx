@@ -250,11 +250,11 @@ export default function AdminCalendar() {
     try {
       let res;
       try {
-        res = await axios.get(`${API_BASE_URL}/api/admin/classes/all`, {
+        res = await axios.get(`${API_BASE_URL}/api/admin/classes/all?all=true`, {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }
         });
       } catch (err) {
-        res = await axios.get(`${API_BASE_URL}/api/tutor/classes/schedule`, {
+        res = await axios.get(`${API_BASE_URL}/api/tutor/classes/schedule?all=true`, {
           headers: { Authorization: `Bearer ${token}`, Accept: "application/json" }
         });
       }

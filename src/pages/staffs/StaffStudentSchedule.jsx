@@ -253,6 +253,14 @@ export default function StaffStudentSchedule() {
   const [expandedClassIds, setExpandedClassIds] = useState({});
   const [showLiveNotifications, setShowLiveNotifications] = useState(false);
   const [notificationLogs, setNotificationLogs] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [paginationMeta, setPaginationMeta] = useState({
+    current_page: 1,
+    last_page: 1,
+    total: 0,
+    has_more: false,
+    per_page: 50,
+  });
 
   // --- FETCH SCHEDULE & ENROLLED STUDENTS ---
   const fetchData = useCallback(async () => {
@@ -266,8 +274,8 @@ export default function StaffStudentSchedule() {
       };
 
       const scheduleUrl = isAdvisor
-        ? `${API_BASE_URL}/api/advisor/classes/schedule`
-        : `${API_BASE_URL}/api/admin/classes/all`;
+        ? `${API_BASE_URL}/api/advisor/classes/schedule?page=${currentPage}&per_page=50`
+        : `${API_BASE_URL}/api/admin/classes/all?page=${currentPage}&per_page=50`;
 
       const studentsUrl = isAdvisor
         ? `${API_BASE_URL}/api/advisor/students/all`
@@ -292,6 +300,19 @@ export default function StaffStudentSchedule() {
       // Parse sessions using unified robust extractor
       const allSessionsList = extractFlatSessions(scheduleRes.data || {});
       setClassesData(allSessionsList);
+
+      // Parse pagination metadata
+      if (scheduleRes.data?.pagination) {
+        setPaginationMeta(scheduleRes.data.pagination);
+      } else if (scheduleRes.data?.total !== undefined) {
+        setPaginationMeta({
+          current_page: scheduleRes.data.current_page || currentPage,
+          last_page: scheduleRes.data.last_page || 1,
+          total: scheduleRes.data.total || allSessionsList.length,
+          has_more: !!scheduleRes.data.has_more,
+          per_page: scheduleRes.data.per_page || 50,
+        });
+      }
 
       // Automatically expand first 2 classes by default
       const initialExpanded = {};
@@ -334,7 +355,7 @@ export default function StaffStudentSchedule() {
     } finally {
       setLoading(false);
     }
-  }, [API_BASE_URL, token, isAdvisor]);
+  }, [API_BASE_URL, token, isAdvisor, currentPage]);
 
   useEffect(() => {
     fetchData();
@@ -1017,6 +1038,78 @@ export default function StaffStudentSchedule() {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {/* ── PAGINATION CONTROLS (50 + 50 SESSIONS) ───────────────── */}
+        {!loading && filteredSessions.length > 0 && paginationMeta.total > 0 && (
+          <div className="bg-white/80 dark:bg-[#09314F]/70 backdrop-blur-2xl rounded-[30px] p-5 sm:p-6 border border-gray-200/80 dark:border-white/15 shadow-xl shadow-[#0F2843]/5 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="text-xs font-bold text-gray-500 dark:text-gray-300 flex items-center gap-2">
+              <SparklesIcon className="w-4 h-4 text-[#BB9E7F]" />
+              <span>
+                Showing{" "}
+                <span className="font-black text-[#0F2843] dark:text-[#C5A97A]">
+                  {((currentPage - 1) * paginationMeta.per_page) + 1}
+                </span>
+                {" "}–{" "}
+                <span className="font-black text-[#0F2843] dark:text-[#C5A97A]">
+                  {Math.min(currentPage * paginationMeta.per_page, paginationMeta.total)}
+                </span>
+                {" "}of{" "}
+                <span className="font-black text-[#0F2843] dark:text-[#C5A97A]">
+                  {paginationMeta.total}
+                </span>
+                {" "}masterclasses (Page {currentPage} of {Math.max(1, paginationMeta.last_page)})
+              </span>
+            </div>
+
+            {paginationMeta.last_page > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(1, prev - 1));
+                    window.scrollTo({ top: 320, behavior: "smooth" });
+                  }}
+                  disabled={currentPage <= 1}
+                  className="px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all border shadow-sm disabled:opacity-40 disabled:cursor-not-allowed bg-gray-100/90 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 border-gray-200/60 dark:border-white/10 active:scale-95"
+                >
+                  &larr; Previous 50
+                </button>
+
+                <div className="flex items-center gap-1.5 px-2">
+                  {Array.from({ length: paginationMeta.last_page }, (_, i) => i + 1).map((pageNum) => {
+                    const isActive = pageNum === currentPage;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => {
+                          setCurrentPage(pageNum);
+                          window.scrollTo({ top: 320, behavior: "smooth" });
+                        }}
+                        className={`w-9 h-9 rounded-xl text-xs font-black transition-all shadow-sm active:scale-95 ${
+                          isActive
+                            ? "bg-gradient-to-r from-[#BB9E7F] to-[#D4B592] text-[#0F2843] shadow-md shadow-[#BB9E7F]/30 ring-2 ring-[#BB9E7F]/40"
+                            : "bg-gray-100/90 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 border border-gray-200/60 dark:border-white/10"
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(paginationMeta.last_page, prev + 1));
+                    window.scrollTo({ top: 320, behavior: "smooth" });
+                  }}
+                  disabled={currentPage >= paginationMeta.last_page}
+                  className="px-4 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all border shadow-sm disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-r from-[#BB9E7F] to-[#D4B592] text-[#0F2843] font-black shadow-md shadow-[#BB9E7F]/20 active:scale-95 hover:opacity-90"
+                >
+                  Next 50 &rarr;
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
