@@ -1590,7 +1590,7 @@ export default function AdminCreateStudent() {
 
                   {/* Subject Multi-Select Card */}
                   <div className="bg-white dark:bg-[#09314F]/40 dark:backdrop-blur-md rounded-3xl border border-gray-100 dark:border-[#09314F] shadow-sm overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800">
+                    <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-800 flex items-center justify-between">
                       <h3 className="text-[11px] font-black text-gray-400 uppercase tracking-widest flex items-center gap-2">
                         <ClipboardDocumentIcon className="w-4 h-4 text-[#C5A97A]" />
                         Subjects
@@ -1600,6 +1600,25 @@ export default function AdminCreateStudent() {
                           </span>
                         )}
                       </h3>
+                      {subjects.length > 0 && (
+                        <div className="flex items-center gap-2 text-[11px] font-bold">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllSubjects}
+                            className="text-[#C5A97A] hover:underline transition-all"
+                          >
+                            Select All
+                          </button>
+                          <span className="text-gray-300 dark:text-gray-600">|</span>
+                          <button
+                            type="button"
+                            onClick={handleClearSubjects}
+                            className="text-gray-400 hover:text-red-500 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="p-6">
                       {!formData.course_id ? (
@@ -1614,11 +1633,26 @@ export default function AdminCreateStudent() {
                         <p className="text-xs text-gray-400 font-medium text-center py-4">
                           No subjects found for this course.
                         </p>
+                      ) : filteredSubjects.length === 0 ? (
+                        <div className="text-center py-4 space-y-2">
+                          <p className="text-xs text-gray-400 font-medium">
+                            No subjects found matching {formData.department ? `department "${formData.department}"` : "the current filters"}.
+                          </p>
+                          {formData.department && (
+                            <button
+                              type="button"
+                              onClick={() => setFormData((p) => ({ ...p, department: "" }))}
+                              className="text-xs font-bold text-[#C5A97A] hover:underline"
+                            >
+                              Show all course subjects
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         <div className="space-y-2 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
-                          {subjects.map((subject) => {
-                            const isChecked = formData.subject_ids.includes(
-                              subject.id
+                          {filteredSubjects.map((subject) => {
+                            const isChecked = formData.subject_ids.some(
+                              (id) => parseInt(id) === parseInt(subject.id)
                             );
                             const subjectDisplayName =
                               subject.name || subject.title || `Subject #${subject.id}`;
