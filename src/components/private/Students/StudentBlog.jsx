@@ -3,7 +3,8 @@ import axios from "axios";
 import { Icon } from "@iconify/react";
 import DashboardLayout from "./DashboardLayout";
 import { useAuth } from "../../../context/AuthContext";
-import { getBlogImageUrl } from "../../../utils/imageUrl";
+import BlogSlideshow from "../../common/BlogSlideshow";
+import { normalizeRichMediaHtml } from "../../../utils/imageUrl";
 
 export default function StudentBlog() {
   const { user } = useAuth();
@@ -165,12 +166,13 @@ export default function StudentBlog() {
               </div>
             </div>
 
-            {/* Featured Image */}
-            {selectedArticle.featured_image && (
+            {/* Featured Image / Slideshow */}
+            {(selectedArticle.images?.length > 0 || selectedArticle.featured_image) && (
               <div className="rounded-2xl overflow-hidden h-72 sm:h-96 w-full bg-gray-100 dark:bg-gray-900">
-                <img
-                  src={getBlogImageUrl(selectedArticle.featured_image)}
+                <BlogSlideshow
+                  images={selectedArticle.images?.length > 0 ? selectedArticle.images : [selectedArticle.featured_image]}
                   alt={selectedArticle.title}
+                  containerClassName="w-full h-full relative overflow-hidden group"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -185,8 +187,8 @@ export default function StudentBlog() {
 
             {/* Rich Content */}
             <div
-              className="prose dark:prose-invert max-w-none text-gray-800 dark:text-gray-200 leading-relaxed text-sm md:text-base space-y-4"
-              dangerouslySetInnerHTML={{ __html: selectedArticle.content }}
+              className="prose dark:prose-invert max-w-none text-gray-800 dark:text-gray-200 leading-relaxed text-sm md:text-base space-y-4 [&_img]:rounded-2xl [&_img]:max-w-full [&_figure]:my-6 [&_figure]:mx-auto [&_figcaption]:text-xs [&_figcaption]:text-center [&_figcaption]:text-gray-400 [&_figcaption]:mt-2 [&_figcaption]:italic [&_audio]:w-full [&_audio]:my-4 [&_video]:w-full [&_video]:rounded-2xl [&_video]:my-4 [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:my-4 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_code]:break-all"
+              dangerouslySetInnerHTML={{ __html: normalizeRichMediaHtml(selectedArticle.content) }}
             />
 
             {/* Discussion & Comments */}
@@ -316,12 +318,13 @@ export default function StudentBlog() {
                     onClick={() => setSelectedArticle(b)}
                     className="bg-white dark:bg-gray-800 rounded-3xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl hover:border-[#C5A97A]/40 transition-all flex flex-col cursor-pointer group"
                   >
-                    {/* Thumbnail */}
+                    {/* Thumbnail / Slideshow */}
                     <div className="relative h-44 bg-gray-100 dark:bg-gray-900 overflow-hidden">
-                      {b.featured_image ? (
-                        <img
-                          src={getBlogImageUrl(b.featured_image)}
+                      {b.images?.length > 0 || b.featured_image ? (
+                        <BlogSlideshow
+                          images={b.images?.length > 0 ? b.images : [b.featured_image]}
                           alt={b.title}
+                          containerClassName="w-full h-full relative overflow-hidden group"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
@@ -329,7 +332,7 @@ export default function StudentBlog() {
                           <Icon icon="lucide:newspaper" className="w-10 h-10 opacity-50" />
                         </div>
                       )}
-                      <div className="absolute top-3 left-3">
+                      <div className="absolute top-3 left-3 z-10">
                         <span className="px-2.5 py-0.5 rounded-md bg-[#09314F]/85 backdrop-blur-md text-[#C5A97A] text-[9px] font-black uppercase tracking-wider">
                           {b.category?.name || "General"}
                         </span>

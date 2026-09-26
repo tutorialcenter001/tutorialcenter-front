@@ -1,10 +1,13 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import axios from "axios";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import StaffDashboardLayout from "../../../components/private/staffs/DashboardLayout.jsx";
 import { Icon } from "@iconify/react";
-import { getBlogImageUrl } from "../../../utils/imageUrl";
+import { getBlogImageUrl, normalizeRichMediaHtml } from "../../../utils/imageUrl";
+import BlogSlideshow from "../../../components/common/BlogSlideshow.jsx";
+import BlogMediaInsertModal from "../../../components/private/staffs/blogs/BlogMediaInsertModal.jsx";
+import BlogCategoryModal from "../../../components/private/staffs/blogs/BlogCategoryModal.jsx";
 
 export default function BlogManagement() {
   const [blogs, setBlogs] = useState([]);
@@ -34,8 +37,14 @@ export default function BlogManagement() {
 
   const [tagInput, setTagInput] = useState("");
   const [showAllPreviousTags, setShowAllPreviousTags] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-  const [imagePreview, setImagePreview] = useState(null);
+  // Multi-Image Gallery state: [{ id, file?, url, rawPath?, isExisting }]
+  const [galleryImages, setGalleryImages] = useState([]);
+  // In-Content Media Insert Modal state
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [mediaModalType, setMediaModalType] = useState("image");
+  // Category Creation & Management Modal state
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const quillRef = useRef(null);
 
   // Extract all unique existing tags across all blog posts
   const allExistingTags = useMemo(() => {
@@ -258,29 +267,103 @@ export default function BlogManagement() {
   const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/svg+xml"];
   const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".svg"];
 
-  // Handle Image Selection
+  // Handle Multiple Images Selection
   const handleImageChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const fileExt = "." + (file.name.split(".").pop() || "").toLowerCase();
-    const isAllowed = ALLOWED_IMAGE_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(fileExt);
+    const validFiles = [];
+    for (const file of files) {
+      const fileExt = "." + (file.name.split(".").pop() || "").toLowerCase();
+      const isAllowed = ALLOWED_IMAGE_TYPES.includes(file.type) || ALLOWED_EXTENSIONS.includes(fileExt);
 
-    if (!isAllowed) {
-      showToast("Invalid format. Only JPG, PNG, WEBP, and SVG images are accepted.", "error");
+      if (!isAllowed) {
+        showToast(`Skipped "${file.name}": Only JPG, PNG, WEBP, and SVG are accepted.`, "error");
+        continue;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        showToast(`Skipped "${file.name}": Size exceeds 10MB limit.`, "error");
+        continue;
+      }
+
+      validFiles.push(file);
+    }
+
+    if (validFiles.length === 0) {
       e.target.value = "";
       return;
     }
 
-    if (file.size > 10 * 1024 * 1024) {
-      showToast("Image size must be less than 10MB.", "error");
-      e.target.value = "";
-      return;
-    }
+    const compressed = await Promise.all(validFiles.map((f) => compressImage(f)));
+    const newItems = compressed.map((file, idx) => ({
+      id: `new-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 7)}`,
+      file,
+      url: URL.createObjectURL(file),
+      isExisting: false,
+    }));
 
-    const optimized = await compressImage(file);
-    setImageFile(optimized);
-    setImagePreview(URL.createObjectURL(optimized));
+    setGalleryImages((prev) => [...prev, ...newItems]);
+    showToast(`Added ${newItems.length} image${newItems.length > 1 ? "s" : ""} to slideshow gallery.`);
+    e.target.value = "";
+  };
+
+  const handleSetCover = (index) => {
+    if (index === 0) return;
+    setGalleryImages((prev) => {
+      const next = [...prev];
+      const [chosen] = next.splice(index, 1);
+      next.unshift(chosen);
+      return next;
+    });
+    showToast("Primary cover image set.");
+  };
+
+  const handleMoveImage = (fromIdx, toIdx) => {
+    setGalleryImages((prev) => {
+      if (toIdx < 0 || toIdx >= prev.length) return prev;
+      const next = [...prev];
+      const [item] = next.splice(fromIdx, 1);
+      next.splice(toIdx, 0, item);
+      return next;
+    });
+  };
+
+  const handleRemoveImage = (index) => {
+    setGalleryImages((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Open Media Insert Modal
+  const handleOpenMediaModal = (type = "image") => {
+    setMediaModalType(type);
+    setIsMediaModalOpen(true);
+  };
+
+  // Insert Multimedia snippet at current Quill cursor position
+  const handleInsertMedia = (htmlSnippet) => {
+    const quill = quillRef.current?.getEditor();
+    if (quill) {
+      const range = quill.getSelection(true);
+      const index = range ? range.index : quill.getLength();
+      quill.clipboard.dangerouslyPasteHTML(index, htmlSnippet);
+      quill.setSelection(index + 1);
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        content: (prev.content || "") + htmlSnippet,
+      }));
+    }
+    setIsMediaModalOpen(false);
+    showToast("Media element inserted into article content!");
+  };
+
+  // Category created or selected from BlogCategoryModal
+  const handleCategoryCreated = (newCat) => {
+    setFormData((prev) => ({
+      ...prev,
+      category_name: newCat.name,
+    }));
+    showToast(`Category "${newCat.name}" selected!`);
   };
 
   // Reset form
@@ -296,8 +379,7 @@ export default function BlogManagement() {
       meta_keywords: "",
     });
     setTagInput("");
-    setImageFile(null);
-    setImagePreview(null);
+    setGalleryImages([]);
     setEditingBlogId(null);
   };
 
@@ -315,8 +397,32 @@ export default function BlogManagement() {
       allow_comments: blog.allow_comments !== undefined ? Boolean(blog.allow_comments) : true,
       meta_keywords: blog.meta_keywords || "",
     });
-    setImagePreview(getBlogImageUrl(blog.featured_image) || null);
-    setImageFile(null);
+
+    // Populate gallery images from blog.images or featured_image
+    let rawImages = [];
+    if (Array.isArray(blog.images) && blog.images.length > 0) {
+      rawImages = blog.images;
+    } else if (typeof blog.images === "string") {
+      try {
+        const parsed = JSON.parse(blog.images);
+        if (Array.isArray(parsed) && parsed.length > 0) rawImages = parsed;
+      } catch (e) {
+        // Fallback
+      }
+    }
+
+    if (rawImages.length === 0 && blog.featured_image) {
+      rawImages = [blog.featured_image];
+    }
+
+    const items = rawImages.map((imgPath, idx) => ({
+      id: `existing-${idx}-${Date.now()}`,
+      url: getBlogImageUrl(imgPath),
+      rawPath: imgPath,
+      isExisting: true,
+    }));
+
+    setGalleryImages(items);
     setActiveTab("editor");
   };
 
@@ -350,7 +456,14 @@ export default function BlogManagement() {
 
       const payload = new FormData();
       payload.append("title", formData.title.trim());
-      payload.append("category_name", formData.category_name.trim());
+      const cleanCat = (formData.category_name || "General").trim();
+      payload.append("category_name", cleanCat);
+      const matchedCat = categories.find(
+        (c) => c.name?.toLowerCase() === cleanCat.toLowerCase()
+      );
+      if (matchedCat) {
+        payload.append("blog_category_id", matchedCat.id);
+      }
       payload.append("content", formData.content);
       payload.append("excerpt", formData.excerpt.trim());
       payload.append("status", postStatus);
@@ -372,8 +485,24 @@ export default function BlogManagement() {
 
       payload.append("meta_keywords", finalKeywords);
 
-      if (imageFile) {
-        payload.append("featured_image", imageFile);
+      // Append new gallery image files
+      galleryImages
+        .filter((item) => !item.isExisting && item.file)
+        .forEach((item) => {
+          payload.append("images[]", item.file);
+        });
+
+      // Append existing retained image paths in order
+      const existingPaths = galleryImages
+        .filter((item) => item.isExisting)
+        .map((item) => item.rawPath || item.url);
+      payload.append("existing_images", JSON.stringify(existingPaths));
+
+      // Featured image fallback for single-image consumers
+      if (galleryImages.length > 0 && galleryImages[0].file) {
+        payload.append("featured_image", galleryImages[0].file);
+      } else if (galleryImages.length > 0 && galleryImages[0].rawPath) {
+        payload.append("featured_image", galleryImages[0].rawPath);
       }
 
       if (editingBlogId) {
@@ -580,12 +709,13 @@ export default function BlogManagement() {
                     key={b.id}
                     className="bg-white dark:bg-[#09314F]/40 backdrop-blur-md rounded-3xl border border-gray-100 dark:border-[#1a4a75] shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col group"
                   >
-                    {/* Featured Image */}
+                    {/* Featured Image / Slideshow */}
                     <div className="relative h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                      {b.featured_image ? (
-                        <img
-                          src={getBlogImageUrl(b.featured_image)}
+                      {b.images?.length > 0 || b.featured_image ? (
+                        <BlogSlideshow
+                          images={b.images?.length > 0 ? b.images : [b.featured_image]}
                           alt={b.title}
+                          containerClassName="w-full h-full relative overflow-hidden group"
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                         />
                       ) : (
@@ -596,7 +726,7 @@ export default function BlogManagement() {
                       )}
 
                       {/* Status Tag */}
-                      <div className="absolute top-3 right-3">
+                      <div className="absolute top-3 right-3 z-10">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider shadow-md backdrop-blur-md ${
                             b.status === "published"
@@ -609,7 +739,7 @@ export default function BlogManagement() {
                       </div>
 
                       {/* Category Tag */}
-                      <div className="absolute bottom-3 left-3">
+                      <div className="absolute bottom-3 left-3 z-10">
                         <span className="px-2.5 py-1 rounded-lg bg-[#09314F]/80 backdrop-blur-md text-[#C5A97A] text-[10px] font-black uppercase tracking-wider border border-white/10">
                           {b.category?.name || "General"}
                         </span>
@@ -785,16 +915,21 @@ export default function BlogManagement() {
                   </p>
                 )}
 
-                {imagePreview && (
+                {galleryImages.length > 0 && (
                   <div className="rounded-2xl overflow-hidden h-[240px] sm:h-[360px] w-full">
-                    <img src={imagePreview} alt="Preview" className="w-full h-full object-cover" />
+                    <BlogSlideshow
+                      images={galleryImages.map((img) => img.url)}
+                      alt="Article Gallery Preview"
+                      containerClassName="w-full h-full relative overflow-hidden"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                 )}
 
                 {/* Rendered HTML */}
                 <div 
-                  className="quill-content blog-article-content prose dark:prose-invert max-w-full text-gray-800 dark:text-gray-200 leading-relaxed text-sm sm:text-base pt-4 break-words overflow-hidden [&_p]:mb-4 [&_img]:rounded-2xl [&_img]:max-w-full [&_img]:h-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_code]:break-all [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block"
-                  dangerouslySetInnerHTML={{ __html: formData.content || "<p>No content written yet.</p>" }}
+                  className="quill-content blog-article-content prose dark:prose-invert max-w-full text-gray-800 dark:text-gray-200 leading-relaxed text-sm sm:text-base pt-4 break-words overflow-hidden [&_p]:mb-4 [&_img]:rounded-2xl [&_img]:max-w-full [&_img]:h-auto [&_figure]:my-6 [&_figure]:mx-auto [&_figcaption]:text-xs [&_figcaption]:text-center [&_figcaption]:text-gray-400 [&_figcaption]:mt-2 [&_figcaption]:italic [&_audio]:w-full [&_audio]:my-4 [&_video]:w-full [&_video]:rounded-2xl [&_video]:my-4 [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:my-4 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_code]:break-all [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_ul]:list-disc [&_ul]:pl-6 [&_ol]:list-decimal [&_ol]:pl-6 [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block"
+                  dangerouslySetInnerHTML={{ __html: normalizeRichMediaHtml(formData.content || "<p>No content written yet.</p>") }}
                 />
 
                 {/* Tags (Meta Keywords) Preview */}
@@ -938,15 +1073,56 @@ export default function BlogManagement() {
                     </div>
                   </div>
 
-                  {/* Rich Text Editor */}
+                  {/* Rich Text Editor with In-Content Media Action Bar */}
                   <div>
-                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 flex items-center justify-between">
-                      <span>Article Content (Rich Text & Media) *</span>
-                      <span className="text-[10px] text-gray-400 font-normal">Supports Headings, Images, Links, Lists</span>
-                    </label>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
+                      <div>
+                        <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest">
+                          Article Content (Rich Text & Media) *
+                        </label>
+                        <span className="text-[10px] text-gray-400 font-normal">
+                          Insert media, format headings, blockquotes, code blocks, lists
+                        </span>
+                      </div>
+
+                      {/* Quick In-Content Media Insert Action Bar */}
+                      <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-[#06243A] p-1 rounded-xl border border-gray-200 dark:border-gray-700/80">
+                        <span className="text-[10px] font-black text-[#09314F] dark:text-[#C5A97A] px-2 uppercase tracking-wider hidden sm:inline">
+                          + Insert Media:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMediaModal("image")}
+                          className="px-2.5 py-1 bg-white dark:bg-white/10 hover:bg-blue-50 dark:hover:bg-white/20 text-[#09314F] dark:text-white rounded-lg text-xs font-bold border border-gray-200 dark:border-white/10 shadow-xs flex items-center gap-1 transition-all active:scale-95"
+                          title="Insert image with optional caption at cursor"
+                        >
+                          <Icon icon="lucide:image" className="w-3.5 h-3.5 text-blue-500" />
+                          <span>Image</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMediaModal("audio")}
+                          className="px-2.5 py-1 bg-white dark:bg-white/10 hover:bg-purple-50 dark:hover:bg-white/20 text-[#09314F] dark:text-white rounded-lg text-xs font-bold border border-gray-200 dark:border-white/10 shadow-xs flex items-center gap-1 transition-all active:scale-95"
+                          title="Insert playable audio clip player at cursor"
+                        >
+                          <Icon icon="lucide:music" className="w-3.5 h-3.5 text-purple-500" />
+                          <span>Audio</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenMediaModal("video")}
+                          className="px-2.5 py-1 bg-white dark:bg-white/10 hover:bg-red-50 dark:hover:bg-white/20 text-[#09314F] dark:text-white rounded-lg text-xs font-bold border border-gray-200 dark:border-white/10 shadow-xs flex items-center gap-1 transition-all active:scale-95"
+                          title="Insert video player or YouTube/Vimeo embed at cursor"
+                        >
+                          <Icon icon="lucide:video" className="w-3.5 h-3.5 text-red-500" />
+                          <span>Video</span>
+                        </button>
+                      </div>
+                    </div>
 
                     <div className="bg-white dark:bg-[#06243A] rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-inner">
                       <ReactQuill
+                        ref={quillRef}
                         theme="snow"
                         value={formData.content}
                         onChange={(content) => setFormData({ ...formData, content })}
@@ -962,94 +1138,216 @@ export default function BlogManagement() {
                 {/* Publishing Options Sidebar (Right 1 col) */}
                 <div className="space-y-5">
                   
-                  {/* Featured Image Uploader */}
-                  <div className="bg-white dark:bg-[#09314F]/40 backdrop-blur-md p-6 rounded-3xl border border-gray-100 dark:border-[#1a4a75] shadow-sm space-y-3">
+                  {/* Multi-Image Gallery & Slideshow Manager */}
+                  <div className="bg-white dark:bg-[#09314F]/40 backdrop-blur-md p-6 rounded-3xl border border-gray-100 dark:border-[#1a4a75] shadow-sm space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-xs font-black uppercase tracking-wider text-[#09314F] dark:text-white flex items-center gap-2">
-                        <Icon icon="lucide:image" className="w-4 h-4 text-[#C5A97A]" />
-                        Featured Image
-                      </h3>
-                      <span className="text-[10px] font-bold text-gray-400">Max 10MB</span>
+                      <div className="flex items-center gap-2">
+                        <Icon icon="lucide:images" className="w-4 h-4 text-[#C5A97A]" />
+                        <h3 className="text-xs font-black uppercase tracking-wider text-[#09314F] dark:text-white">
+                          Post Gallery ({galleryImages.length})
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-bold text-gray-400">Slideshow / Carousel</span>
                     </div>
 
-                    <div className="relative rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 h-44 overflow-hidden flex flex-col items-center justify-center text-center p-4 hover:border-[#C5A97A] transition-colors group">
-                      {imagePreview ? (
-                        <>
-                          <img src={imagePreview} alt="Featured" className="w-full h-full object-cover" />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setImageFile(null);
-                              setImagePreview(null);
-                            }}
-                            className="absolute top-2 right-2 p-1.5 bg-red-600 text-white rounded-lg text-xs shadow hover:bg-red-700 transition-colors"
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                      Upload one or multiple images. Readers can slide through them in cards and post headers. The first image is the primary cover.
+                    </p>
+
+                    {/* Thumbnail Grid */}
+                    {galleryImages.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pr-1">
+                        {galleryImages.map((img, idx) => (
+                          <div
+                            key={img.id || idx}
+                            className={`relative group rounded-xl overflow-hidden border-2 transition-all ${
+                              idx === 0
+                                ? "border-[#C5A97A] shadow-md ring-2 ring-[#C5A97A]/20"
+                                : "border-gray-200 dark:border-gray-700 hover:border-gray-400"
+                            }`}
                           >
-                            <Icon icon="lucide:x" className="w-4 h-4" />
-                          </button>
-                        </>
-                      ) : (
-                        <div className="space-y-2">
-                          <Icon icon="lucide:upload-cloud" className="w-9 h-9 text-gray-400 mx-auto group-hover:scale-110 transition-transform text-[#09314F] dark:text-[#C5A97A]" />
-                          <div>
-                            <p className="text-xs font-bold text-gray-700 dark:text-gray-200">Click to upload thumbnail</p>
-                            <p className="text-[10px] text-gray-400 mt-0.5">Drag & drop or browse from device</p>
+                            <img
+                              src={img.url}
+                              alt={`Gallery ${idx + 1}`}
+                              className="w-full h-24 object-cover"
+                            />
+
+                            {/* Cover Badge */}
+                            {idx === 0 ? (
+                              <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-[#C5A97A] text-[#09314F] text-[9px] font-black uppercase tracking-wider shadow">
+                                Cover
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSetCover(idx)}
+                                title="Set as primary cover image"
+                                className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-black/60 hover:bg-[#C5A97A] text-white hover:text-[#09314F] text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-all shadow"
+                              >
+                                Set Cover
+                              </button>
+                            )}
+
+                            {/* Action overlay buttons */}
+                            <div className="absolute top-1 right-1 flex items-center gap-1">
+                              {/* Move Left */}
+                              {idx > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveImage(idx, idx - 1)}
+                                  title="Move Left"
+                                  className="w-5 h-5 rounded bg-black/60 hover:bg-black/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-xs"
+                                >
+                                  ←
+                                </button>
+                              )}
+                              {/* Move Right */}
+                              {idx < galleryImages.length - 1 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveImage(idx, idx + 1)}
+                                  title="Move Right"
+                                  className="w-5 h-5 rounded bg-black/60 hover:bg-black/90 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all text-xs"
+                                >
+                                  →
+                                </button>
+                              )}
+                              {/* Remove */}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImage(idx)}
+                                title="Remove Image"
+                                className="w-5 h-5 rounded bg-red-600 hover:bg-red-700 text-white flex items-center justify-center shadow transition-all"
+                              >
+                                <Icon icon="lucide:x" className="w-3 h-3" />
+                              </button>
+                            </div>
                           </div>
-                          {/* Format badges */}
-                          <div className="flex items-center justify-center gap-1 pt-1">
-                            {["JPG", "PNG", "WEBP", "SVG"].map((fmt) => (
-                              <span key={fmt} className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 text-[9px] font-black">
-                                {fmt}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Upload Dropzone */}
+                    <div className="relative rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 py-6 px-4 overflow-hidden flex flex-col items-center justify-center text-center hover:border-[#C5A97A] transition-colors group">
+                      <div className="space-y-1.5 pointer-events-none">
+                        <Icon icon="lucide:upload-cloud" className="w-8 h-8 text-gray-400 mx-auto group-hover:scale-110 transition-transform text-[#09314F] dark:text-[#C5A97A]" />
+                        <p className="text-xs font-bold text-gray-700 dark:text-gray-200">
+                          {galleryImages.length > 0 ? "+ Add More Images" : "Click or Drag to Upload Images"}
+                        </p>
+                        <p className="text-[10px] text-gray-400">Multiple selection supported (JPG, PNG, WEBP, SVG)</p>
+                      </div>
                       <input
                         type="file"
+                        multiple
                         accept=".jpg,.jpeg,.png,.webp,.svg,image/jpeg,image/png,image/webp,image/svg+xml"
                         onChange={handleImageChange}
                         className="absolute inset-0 opacity-0 cursor-pointer"
                       />
                     </div>
-                    <p className="text-[10px] text-gray-400 font-medium">
-                      Accepted formats: <strong className="text-gray-600 dark:text-gray-300">JPG, PNG, WEBP, SVG</strong> only.
-                    </p>
                   </div>
 
                   {/* Category & Metadata */}
                   <div className="bg-white dark:bg-[#09314F]/40 backdrop-blur-md p-6 rounded-3xl border border-gray-100 dark:border-[#1a4a75] shadow-sm space-y-4">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-[#09314F] dark:text-white flex items-center gap-2">
-                      <Icon icon="lucide:tag" className="w-4 h-4 text-[#C5A97A]" />
-                      Category & Topic
-                    </h3>
-
-                    <div>
-                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">Category</label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Academic Tips, Exam Updates, Motivation"
-                        value={formData.category_name}
-                        onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
-                        className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-[#06243A] rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-[#09314F] dark:text-white focus:outline-none focus:border-[#C5A97A]"
-                      />
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-xs font-black uppercase tracking-wider text-[#09314F] dark:text-white flex items-center gap-2">
+                        <Icon icon="lucide:tag" className="w-4 h-4 text-[#C5A97A]" />
+                        Category & Topic
+                      </h3>
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#09314F] dark:bg-[#C5A97A] text-white dark:text-[#09314F] text-[10px] font-black uppercase tracking-wider shadow-sm hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        <Icon icon="lucide:folder-plus" className="w-3.5 h-3.5" />
+                        <span>+ New Category</span>
+                      </button>
                     </div>
 
-                    {/* Quick Category Chips */}
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {["Academic Tips", "JAMB & UTME", "WAEC & NECO", "Success Stories", "Study Guides"].map((cat) => (
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-400 mb-1.5 uppercase">
+                        Select or Type Category *
+                      </label>
+                      <div className="space-y-2">
+                        <select
+                          value={categories.some((c) => c.name === formData.category_name) ? formData.category_name : "__custom__"}
+                          onChange={(e) => {
+                            if (e.target.value === "__create_new__") {
+                              setIsCategoryModalOpen(true);
+                            } else if (e.target.value !== "__custom__") {
+                              setFormData({ ...formData, category_name: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3.5 py-2.5 bg-gray-50 dark:bg-[#06243A] rounded-xl border border-gray-200 dark:border-gray-700 text-xs font-bold text-[#09314F] dark:text-white focus:outline-none focus:border-[#C5A97A]"
+                        >
+                          <option value="">-- Choose from Database Categories --</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.name}>
+                              {cat.name} ({cat.blogs_count || 0} {cat.blogs_count === 1 ? 'post' : 'posts'})
+                            </option>
+                          ))}
+                          <option value="__create_new__" className="text-[#C5A97A] font-black">
+                            ✨ + Create New Category in Database...
+                          </option>
+                          {!categories.some((c) => c.name === formData.category_name) && formData.category_name && (
+                            <option value="__custom__">
+                              Custom: "{formData.category_name}"
+                            </option>
+                          )}
+                        </select>
+
+                        <input
+                          type="text"
+                          placeholder="Or type custom category name..."
+                          value={formData.category_name}
+                          onChange={(e) => setFormData({ ...formData, category_name: e.target.value })}
+                          className="w-full px-3.5 py-2 bg-transparent rounded-xl border border-gray-200/60 dark:border-gray-700/60 text-xs font-medium text-gray-700 dark:text-gray-300 focus:outline-none focus:border-[#C5A97A]"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Quick Category Chips from Backend DB */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider flex items-center gap-1">
+                          <Icon icon="lucide:database" className="w-3 h-3 text-[#C5A97A]" />
+                          Database Categories ({categories.length}):
+                        </span>
                         <button
                           type="button"
-                          key={cat}
-                          onClick={() => setFormData({ ...formData, category_name: cat })}
-                          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                            formData.category_name === cat
-                              ? "bg-[#09314F] text-[#C5A97A]"
-                              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200"
-                          }`}
+                          onClick={() => setIsCategoryModalOpen(true)}
+                          className="text-[10px] font-bold text-[#C5A97A] hover:underline"
                         >
-                          {cat}
+                          Manage
                         </button>
-                      ))}
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto pr-1">
+                        {categories.map((cat) => {
+                          const isSelected = formData.category_name?.toLowerCase() === cat.name?.toLowerCase();
+                          return (
+                            <button
+                              type="button"
+                              key={cat.id}
+                              onClick={() => setFormData({ ...formData, category_name: cat.name })}
+                              className={`px-2.5 py-1.5 rounded-xl text-[10px] font-extrabold transition-all flex items-center gap-1.5 ${
+                                isSelected
+                                  ? "bg-[#09314F] text-[#C5A97A] dark:bg-[#C5A97A] dark:text-[#09314F] shadow-sm scale-105 ring-2 ring-[#C5A97A]/30"
+                                  : "bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 border border-transparent dark:border-white/5"
+                              }`}
+                            >
+                              <Icon icon={cat.icon || "lucide:tag"} className="w-3 h-3 opacity-70" />
+                              <span>{cat.name}</span>
+                              {cat.blogs_count > 0 && (
+                                <span className={`px-1.5 py-0.2 rounded-full text-[9px] font-bold ${
+                                  isSelected ? "bg-white/20 text-white dark:text-[#09314F]" : "bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400"
+                                }`}>
+                                  {cat.blogs_count}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
@@ -1125,6 +1423,27 @@ export default function BlogManagement() {
 
           </div>
         )}
+
+        {/* In-Content Multimedia Insert Modal */}
+        <BlogMediaInsertModal
+          isOpen={isMediaModalOpen}
+          onClose={() => setIsMediaModalOpen(false)}
+          onInsert={handleInsertMedia}
+          initialType={mediaModalType}
+          apiBaseUrl={API_BASE_URL}
+          authHeaders={authHeaders}
+        />
+
+        {/* Blog Category Creation & Management Studio Modal */}
+        <BlogCategoryModal
+          isOpen={isCategoryModalOpen}
+          onClose={() => setIsCategoryModalOpen(false)}
+          onCategoryCreated={handleCategoryCreated}
+          categories={categories}
+          onCategoriesUpdated={(newList) => setCategories(newList)}
+          apiBaseUrl={API_BASE_URL}
+          authHeaders={authHeaders}
+        />
 
       </div>
     </StaffDashboardLayout>

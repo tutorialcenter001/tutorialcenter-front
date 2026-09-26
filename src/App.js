@@ -66,6 +66,7 @@ const StaffDashboard = lazy(() => import("./pages/staffs/admin/StaffDashboard.js
 const StaffRegistration = lazy(() => import("./pages/staffs/admin/StaffRegistration.jsx"));
 const StaffManagement = lazy(() => import("./pages/staffs/admin/StaffManagement.jsx"));
 const AdminPaymentHistory = lazy(() => import("./pages/staffs/admin/AdminPaymentHistory.jsx"));
+const AdminAssessments = lazy(() => import("./pages/staffs/admin/AdminAssessments.jsx"));
 const TutorDashboard = lazy(() => import("./pages/staffs/tutor/TutorDashboard.jsx"));
 const TutorMasterClass = lazy(() => import("./pages/staffs/tutor/TutorMasterClass.jsx"));
 const CourseAdvisorDashboard = lazy(() => import("./pages/staffs/courseadvisor/CourseAdvisorDashboard.jsx"));
@@ -235,6 +236,7 @@ function App() {
 
               {/* Staff Routes */}
               <Route path="/staffs/dashboard" element={<StaffDashboard />} />
+              <Route path="/staffs/assessments" element={<AdminAssessments />} />
               <Route path="/staffs/coo/dashboard" element={<CooDashboard />} />
               <Route path="/staffs/manage-blogs" element={<BlogManagement />} />
               <Route path="/staffs/audit-logs" element={<AuditLog />} />

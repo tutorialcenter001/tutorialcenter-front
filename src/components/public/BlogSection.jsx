@@ -3,8 +3,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import { Icon } from "@iconify/react";
 import ScrollReveal from "./ScrollReveal";
-import handCup from "../../assets/images/handCup.webp";
-import { getBlogImageUrl } from "../../utils/imageUrl";
+import BlogSlideshow from "../common/BlogSlideshow";
 
 export default function BlogSection() {
   const [blogs, setBlogs] = useState([]);
@@ -79,14 +78,15 @@ export default function BlogSection() {
                 to={`/blog/${post.slug}`}
                 className="bg-white dark:bg-[#09314F]/40 backdrop-blur-md rounded-3xl overflow-hidden border border-gray-100 dark:border-[#1a4a75] shadow-sm hover:shadow-xl hover:border-[#C5A97A]/40 transition-all flex flex-col h-full group"
               >
-                {/* Thumbnail */}
+                {/* Thumbnail / Slideshow */}
                 <div className="relative h-48 bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                  <img
-                    src={getBlogImageUrl(post.featured_image, handCup)}
+                  <BlogSlideshow
+                    images={post.images?.length > 0 ? post.images : [post.featured_image]}
                     alt={post.title}
+                    containerClassName="w-full h-full relative overflow-hidden group"
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
-                  <div className="absolute top-3 left-3">
+                  <div className="absolute top-3 left-3 z-10">
                     <span className="px-2.5 py-0.5 rounded-md bg-[#09314F]/85 backdrop-blur-md text-[#C5A97A] text-[9px] font-black uppercase tracking-wider">
                       {post.category?.name || "Academic Tip"}
                     </span>

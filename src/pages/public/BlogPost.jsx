@@ -5,7 +5,8 @@ import { Icon } from "@iconify/react";
 import Navbar from "../../components/public/Navbar.jsx";
 import Footer from "../../components/public/Footer.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { getBlogImageUrl } from "../../utils/imageUrl";
+import { getBlogImageUrl, normalizeRichMediaHtml } from "../../utils/imageUrl";
+import BlogSlideshow from "../../components/common/BlogSlideshow.jsx";
 
 export default function BlogPost() {
   const { slug } = useParams();
@@ -313,12 +314,13 @@ export default function BlogPost() {
               </div>
             </div>
 
-            {/* Featured Image */}
-            {blog.featured_image && (
+            {/* Featured Image / Multi-Image Slideshow */}
+            {(blog.images?.length > 0 || blog.featured_image) && (
               <div className="rounded-3xl overflow-hidden shadow-xl h-[280px] sm:h-[400px] md:h-[480px] w-full bg-gray-100 dark:bg-gray-800">
-                <img
-                  src={getBlogImageUrl(blog.featured_image)}
+                <BlogSlideshow
+                  images={blog.images?.length > 0 ? blog.images : [blog.featured_image]}
                   alt={blog.title}
+                  containerClassName="w-full h-full relative overflow-hidden group"
                   className="w-full h-full object-cover"
                 />
               </div>
@@ -333,8 +335,8 @@ export default function BlogPost() {
 
             {/* Rich Content Body */}
             <div
-              className="quill-content blog-article-content prose dark:prose-invert prose-lg max-w-full text-gray-800 dark:text-gray-200 leading-relaxed pt-2 break-words overflow-hidden [&_img]:max-w-full [&_img]:rounded-2xl [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_code]:break-all [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block space-y-4"
-              dangerouslySetInnerHTML={{ __html: blog.content }}
+              className="quill-content blog-article-content prose dark:prose-invert prose-lg max-w-full text-gray-800 dark:text-gray-200 leading-relaxed pt-2 break-words overflow-hidden [&_img]:max-w-full [&_img]:rounded-2xl [&_figure]:my-6 [&_figure]:mx-auto [&_figcaption]:text-xs [&_figcaption]:text-center [&_figcaption]:text-gray-400 [&_figcaption]:mt-2 [&_figcaption]:italic [&_audio]:w-full [&_audio]:my-4 [&_video]:w-full [&_video]:rounded-2xl [&_video]:my-4 [&_iframe]:w-full [&_iframe]:aspect-video [&_iframe]:rounded-2xl [&_iframe]:my-4 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:whitespace-pre-wrap [&_code]:break-all [&_table]:max-w-full [&_table]:overflow-x-auto [&_table]:block space-y-4"
+              dangerouslySetInnerHTML={{ __html: normalizeRichMediaHtml(blog.content) }}
             />
 
             {/* Tags (Meta Keywords) */}
@@ -469,12 +471,14 @@ export default function BlogPost() {
                       to={`/blog/${rel.slug}`}
                       className="p-4 rounded-2xl bg-white dark:bg-gray-800/40 border border-gray-100 dark:border-gray-700 hover:border-[#C5A97A]/40 transition-all flex flex-col group overflow-hidden"
                     >
-                      {rel.featured_image && (
+                      {(rel.images?.length > 0 || rel.featured_image) && (
                         <div className="h-28 w-full rounded-xl overflow-hidden mb-3 bg-gray-100 dark:bg-gray-700">
-                          <img
-                            src={getBlogImageUrl(rel.featured_image)}
+                          <BlogSlideshow
+                            images={rel.images?.length > 0 ? rel.images : [rel.featured_image]}
                             alt={rel.title}
+                            containerClassName="w-full h-full relative overflow-hidden group"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                            showControls={false}
                           />
                         </div>
                       )}

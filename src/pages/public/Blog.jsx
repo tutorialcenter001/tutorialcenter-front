@@ -5,9 +5,8 @@ import { Icon } from "@iconify/react";
 import Navbar from "../../components/public/Navbar";
 import Footer from "../../components/public/Footer";
 import BlogHero from "../../assets/images/Blogs.webp";
-import handCup from "../../assets/images/handCup.webp";
 import ScrollReveal from "../../components/public/ScrollReveal";
-import { getBlogImageUrl } from "../../utils/imageUrl";
+import BlogSlideshow from "../../components/common/BlogSlideshow";
 
 export default function Blog() {
   const [blogs, setBlogs] = useState([]);
@@ -168,13 +167,14 @@ export default function Blog() {
             {featuredPost && (
               <ScrollReveal>
                 <div className="bg-white dark:bg-gray-800/60 rounded-3xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-xl hover:shadow-2xl transition-all grid grid-cols-1 lg:grid-cols-12 group">
-                  <div className="lg:col-span-6 relative h-64 sm:h-80 lg:h-auto overflow-hidden bg-gray-100 dark:bg-gray-900">
-                    <img
-                      src={getBlogImageUrl(featuredPost.featured_image, handCup)}
+                  <div className="lg:col-span-6 relative h-64 sm:h-80 lg:h-auto overflow-hidden bg-gray-100 dark:bg-gray-900 min-h-[260px] sm:min-h-[340px]">
+                    <BlogSlideshow
+                      images={featuredPost.images?.length > 0 ? featuredPost.images : [featuredPost.featured_image]}
                       alt={featuredPost.title}
+                      containerClassName="w-full h-full relative overflow-hidden group"
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
                     />
-                    <div className="absolute top-4 left-4">
+                    <div className="absolute top-4 left-4 z-10">
                       <span className="px-3 py-1 rounded-full bg-[#09314F]/90 backdrop-blur-md text-[#C5A97A] text-[10px] font-black uppercase tracking-wider border border-white/10">
                         {featuredPost.category?.name || "Featured"}
                       </span>
@@ -240,14 +240,15 @@ export default function Blog() {
                         to={`/blog/${post.slug}`}
                         className="bg-white dark:bg-gray-800/50 rounded-3xl overflow-hidden border border-gray-100 dark:border-gray-700 shadow-sm hover:shadow-xl transition-all flex flex-col h-full group"
                       >
-                        {/* Image */}
+                        {/* Slideshow / Image */}
                         <div className="relative h-48 bg-gray-100 dark:bg-gray-900 overflow-hidden">
-                          <img
-                            src={getBlogImageUrl(post.featured_image, handCup)}
+                          <BlogSlideshow
+                            images={post.images?.length > 0 ? post.images : [post.featured_image]}
                             alt={post.title}
+                            containerClassName="w-full h-full relative overflow-hidden group"
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                           />
-                          <div className="absolute top-3 left-3">
+                          <div className="absolute top-3 left-3 z-10">
                             <span className="px-2.5 py-0.5 rounded-md bg-[#09314F]/85 backdrop-blur-md text-[#C5A97A] text-[9px] font-black uppercase tracking-wider">
                               {post.category?.name || "General"}
                             </span>

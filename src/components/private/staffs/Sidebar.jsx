@@ -63,6 +63,7 @@ const adminNavSections = [
     icon: ClipboardDocumentCheckIcon,
     items: [
       { label: "Exams", icon: ClipboardDocumentCheckIcon, destination: "/staffs/manage-exams" },
+      { label: "Assessments", icon: ClipboardDocumentListIcon, destination: "/staffs/assessments" },
       { label: "School Tests", icon: ClipboardDocumentListIcon, destination: "/staffs/school-tests" },
       { label: "Student Leaderboard", icon: TrophyIcon, destination: "/staffs/leaderboard" },
     ],
@@ -114,6 +115,7 @@ const cooNavSections = [
     icon: ClipboardDocumentCheckIcon,
     items: [
       { label: "Exams", icon: ClipboardDocumentCheckIcon, destination: "/staffs/manage-exams" },
+      { label: "Assessments", icon: ClipboardDocumentListIcon, destination: "/staffs/assessments" },
       { label: "School Tests", icon: ClipboardDocumentListIcon, destination: "/staffs/school-tests" },
       { label: "Student Leaderboard", icon: TrophyIcon, destination: "/staffs/leaderboard" },
     ],
@@ -165,6 +167,7 @@ const csaNavSections = [
     icon: ClipboardDocumentCheckIcon,
     items: [
       { label: "Past Questions", icon: ClipboardDocumentCheckIcon, destination: "/staffs/manage-exams" },
+      { label: "Assessments", icon: ClipboardDocumentListIcon, destination: "/staffs/assessments" },
       { label: "School Tests", icon: ClipboardDocumentListIcon, destination: "/staffs/school-tests" },
       { label: "Student Leaderboard", icon: TrophyIcon, destination: "/staffs/leaderboard" },
     ],

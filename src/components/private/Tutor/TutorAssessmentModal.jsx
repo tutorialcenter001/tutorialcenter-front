@@ -14,7 +14,8 @@ import {
   ExclamationTriangleIcon,
   SparklesIcon,
   ChevronUpIcon,
-  ChevronDownIcon
+  ChevronDownIcon,
+  PaperAirplaneIcon
 } from "@heroicons/react/24/outline";
 
 export default function TutorAssessmentModal({
@@ -321,9 +322,9 @@ export default function TutorAssessmentModal({
   // Compute total marks
   const totalMarks = questions.reduce((sum, q) => sum + (parseFloat(q.marks) || 0), 0);
 
-  // --- SUBMIT DRAFT / UPDATE ---
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // --- SUBMIT DRAFT / UPDATE / PUBLISH ---
+  const handleSubmit = async (e, shouldPublish = false) => {
+    if (e && e.preventDefault) e.preventDefault();
     setError(null);
 
     if (!classId) {
@@ -421,8 +422,36 @@ export default function TutorAssessmentModal({
         });
       }
 
+      const savedAssessment = res.data?.assessment;
+      let finalAssessment = savedAssessment;
+
+      if (shouldPublish && savedAssessment?.id) {
+        // Immediate publish with default 3-day window
+        const now = new Date();
+        const due = new Date();
+        due.setDate(due.getDate() + 3);
+        due.setHours(23, 59, 0, 0);
+
+        const formatToSql = (d) => d.toISOString().slice(0, 19).replace("T", " ");
+
+        const pubRes = await axios.post(
+          `${API_BASE_URL}/api/tutor/assessments/${savedAssessment.id}/publish`,
+          {
+            opens_at: formatToSql(now),
+            due_at: formatToSql(due)
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: "application/json"
+            }
+          }
+        );
+        finalAssessment = pubRes.data?.assessment || savedAssessment;
+      }
+
       if (onSuccess) {
-        onSuccess(res.data?.assessment);
+        onSuccess(finalAssessment, shouldPublish);
       }
       onClose();
     } catch (err) {
@@ -982,36 +1011,72 @@ export default function TutorAssessmentModal({
           {/* BOTTOM ACTIONS */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-100 dark:border-white/10 flex-shrink-0">
             <div className="text-xs font-medium text-gray-500 dark:text-gray-300">
-              Drafts can be previewed, edited, and published to students at any time.
+              {assessment?.status === "published"
+                ? "This assessment is published and actively accessible to enrolled students."
+                : "You can save as draft or publish immediately to make it live for enrolled students right away."}
             </div>
 
-            <div className="flex items-center gap-3 w-full sm:w-auto">
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end">
               <button
                 type="button"
                 onClick={onClose}
                 disabled={loading}
-                className="flex-1 sm:flex-none px-6 py-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 rounded-2xl transition"
+                className="px-5 py-3 text-xs font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 rounded-2xl transition"
               >
                 Cancel
               </button>
 
-              <button
-                type="submit"
-                disabled={loading}
-                className="flex-1 sm:flex-none px-8 py-3 text-xs font-black text-white bg-[#0F2843] hover:bg-[#163a5f] dark:bg-[#C5A97A] dark:hover:bg-[#d6bc8f] dark:text-[#0F2843] rounded-2xl shadow-xl shadow-[#0F2843]/20 transition flex items-center justify-center gap-2"
-              >
-                {loading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Saving Assessment...</span>
-                  </>
-                ) : (
-                  <>
-                    <CheckCircleIcon className="w-4 h-4" />
-                    <span>{isEditMode ? "Update Draft" : "Save as Draft"}</span>
-                  </>
-                )}
-              </button>
+              {assessment?.status === "published" ? (
+                <button
+                  type="button"
+                  onClick={(e) => handleSubmit(e, false)}
+                  disabled={loading}
+                  className="px-8 py-3 text-xs font-black text-white bg-[#0F2843] hover:bg-[#163a5f] dark:bg-[#C5A97A] dark:hover:bg-[#d6bc8f] dark:text-[#0F2843] rounded-2xl shadow-xl shadow-[#0F2843]/20 transition flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      <span>Saving Changes...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="w-4 h-4" />
+                      <span>Update Published Assessment</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={(e) => handleSubmit(e, false)}
+                    disabled={loading}
+                    className="px-5 py-3 text-xs font-bold text-gray-700 dark:text-gray-200 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/20 rounded-2xl transition flex items-center justify-center gap-2"
+                  >
+                    <CheckCircleIcon className="w-4 h-4 text-amber-500" />
+                    <span>Save as Draft</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={(e) => handleSubmit(e, true)}
+                    disabled={loading}
+                    className="px-7 py-3 text-xs font-black text-white bg-[#0F2843] hover:bg-[#163a5f] dark:bg-[#C5A97A] dark:hover:bg-[#d6bc8f] dark:text-[#0F2843] rounded-2xl shadow-xl shadow-[#0F2843]/20 transition flex items-center justify-center gap-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                        <span>Publishing to Students...</span>
+                      </>
+                    ) : (
+                      <>
+                        <PaperAirplaneIcon className="w-4 h-4" />
+                        <span>Save & Publish to Students</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </form>

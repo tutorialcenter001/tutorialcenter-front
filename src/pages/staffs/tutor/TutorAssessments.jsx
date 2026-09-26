@@ -463,8 +463,14 @@ export default function TutorAssessments() {
             setSelectedAssessmentForEdit(null);
           }}
           assessment={selectedAssessmentForEdit}
-          onSuccess={(saved) => {
-            showToast(selectedAssessmentForEdit ? "Assessment draft updated!" : "New assessment draft created!");
+          onSuccess={(saved, published) => {
+            showToast(
+              published
+                ? "Assessment published to students successfully!"
+                : selectedAssessmentForEdit
+                ? "Assessment draft updated!"
+                : "New assessment draft created!"
+            );
             fetchAssessments();
           }}
         />
