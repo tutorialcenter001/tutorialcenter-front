@@ -3,7 +3,6 @@ import axios from "axios";
 import StaffDashboardLayout from "../../../components/private/staffs/DashboardLayout.jsx";
 import SummaryCards from "../../../components/private/staffs/dashboard/SummaryCards.jsx";
 import RevenueChart from "../../../components/private/staffs/dashboard/RevenueChart.jsx";
-import SiteTrafficPlaceholder from "../../../components/private/staffs/dashboard/SiteTrafficPlaceholder.jsx";
 import MockExamAnalytics from "../../../components/private/staffs/dashboard/MockExamAnalytics.jsx";
 import LocationAnalysis from "../../../components/private/staffs/dashboard/LocationAnalysis.jsx";
 import LeaderboardWidget from "../../../components/private/staffs/dashboard/LeaderboardWidget.jsx";
@@ -135,14 +134,9 @@ export default function StaffDashboard() {
         {/* ─── Summary Cards ─────────────────────────────────────────── */}
         <SummaryCards payments={payments} loading={loading} />
 
-        {/* ─── Middle Section: Revenue & Traffic ──────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 min-w-0">
-            <RevenueChart payments={payments} loading={loading} />
-          </div>
-          <div className="lg:col-span-1 min-w-0">
-            <SiteTrafficPlaceholder />
-          </div>
+        {/* ─── Middle Section: Revenue Chart ──────────────────────────── */}
+        <div className="w-full min-w-0">
+          <RevenueChart payments={payments} loading={loading} />
         </div>
 
         {/* ─── Bottom Section: Analytics & Leaderboard ───────────────────── */}

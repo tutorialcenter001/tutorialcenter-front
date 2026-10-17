@@ -1,38 +1,14 @@
 import { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import axios from "axios";
 
 export default function SiteTrafficPlaceholder() {
-  const [trafficData, setTrafficData] = useState(null);
+  const [trafficData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const API_BASE_URL =
-    process.env.REACT_APP_API_URL ||
-    "http://tutorialcenter-back.test" ||
-    "http://localhost:8000";
-
+  // Feature deactivated until Google Analytics integration is configured
   useEffect(() => {
-    const fetchTraffic = async () => {
-      try {
-        const token = localStorage.getItem("staff_token") || localStorage.getItem("token");
-        const res = await axios.get(`${API_BASE_URL}/api/admin/analytics/traffic`, {
-          headers: { 
-            Authorization: `Bearer ${token}`,
-            Accept: "application/json" 
-          }
-        });
-        if (res.data?.success) {
-          setTrafficData(res.data.data);
-        }
-      } catch (err) {
-        // Silently handle when traffic analytics backend proxy is not yet provisioned
-        console.debug("Traffic analytics not yet available:", err?.message || err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchTraffic();
-  }, [API_BASE_URL]);
+    setLoading(false);
+  }, []);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 h-full flex flex-col">
