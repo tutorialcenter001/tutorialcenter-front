@@ -90,18 +90,19 @@ export default function StudentClassSchedule() {
       }
 
       const data = res.data?.data || res.data;
-      const nextClasses = Array.isArray(data.next_classes) && data.next_classes.length > 0
+      const rawNext = Array.isArray(data.next_classes) && data.next_classes.length > 0
         ? data.next_classes
         : (data.next_class ? [data.next_class] : []);
+      const nextClasses = rawNext.filter(s => !isSessionCancelled(s));
 
       setScheduleData({
         next_class: nextClasses[0] || null,
         next_classes: nextClasses,
-        today_classes: Array.isArray(data.today_classes) ? data.today_classes : [],
+        today_classes: (Array.isArray(data.today_classes) ? data.today_classes : []).filter(s => !isSessionCancelled(s)),
         week_schedule: data.week_schedule || {},
-        upcoming_sessions: Array.isArray(data.upcoming_sessions) ? data.upcoming_sessions : [],
-        older_sessions: Array.isArray(data.older_sessions) ? data.older_sessions : [],
-        classes: Array.isArray(data.classes) ? data.classes : []
+        upcoming_sessions: (Array.isArray(data.upcoming_sessions) ? data.upcoming_sessions : []).filter(s => !isSessionCancelled(s)),
+        older_sessions: (Array.isArray(data.older_sessions) ? data.older_sessions : []).filter(s => !isSessionCancelled(s)),
+        classes: (Array.isArray(data.classes) ? data.classes : []).filter(c => !isSessionCancelled(c))
       });
       console.log("Fetched Data:", data);
       console.groupEnd();
@@ -126,6 +127,7 @@ export default function StudentClassSchedule() {
 
   const filteredClasses = useMemo(() => {
     let list = Array.isArray(scheduleData.classes) ? [...scheduleData.classes] : [];
+    list = list.filter(c => !isSessionCancelled(c));
     if (searchTerm && searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       list = list.filter(c => {
@@ -135,26 +137,32 @@ export default function StudentClassSchedule() {
         return title.includes(term) || subject.includes(term) || tutor.includes(term);
       });
     }
-    return list;
+    return list.sort((a, b) => {
+      const dateA = new Date(a.created_at || a.start_date || 0).getTime();
+      const dateB = new Date(b.created_at || b.start_date || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return (b.id || 0) - (a.id || 0);
+    });
   }, [scheduleData.classes, searchTerm]);
 
   const groupedSessions = useMemo(() => {
     // Flatten week_schedule object into an array if it has date keys
-    const weeklyArray = Object.values(scheduleData.week_schedule).flat();
+    const weeklyArray = Object.values(scheduleData.week_schedule).flat().filter(s => !isSessionCancelled(s));
 
     const todayDate = new Date().toISOString().substring(0, 10);
-    let today = [...scheduleData.today_classes];
+    let today = [...scheduleData.today_classes].filter(s => !isSessionCancelled(s));
     let weekly = [...weeklyArray];
 
     // Upcoming sessions beyond this week
     let upcoming = (scheduleData.upcoming_sessions || []).filter(s => {
       if (!s.session_date) return true;
+      if (isSessionCancelled(s)) return false;
       const isPastOrToday = s.session_date <= todayDate;
       const isInWeekly = weekly.some(w => (w.id && w.id === s.id) || (w.session_date === s.session_date && w.starts_at === s.starts_at && w.title === s.title));
       return !isPastOrToday && !isInWeekly;
     });
 
-    let older = [...scheduleData.older_sessions];
+    let older = [...scheduleData.older_sessions].filter(s => !isSessionCancelled(s));
 
     if (searchTerm && searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
@@ -170,11 +178,11 @@ export default function StudentClassSchedule() {
       older = older.filter(matches);
     }
 
-    // Sort sections by date/time
+    // Sort sections by date/time (latest to oldest for upcoming/weekly)
     const sortByTime = (a, b) => (a.starts_at || "").localeCompare(b.starts_at || "");
     today.sort(sortByTime);
-    weekly.sort((a,b) => (a.session_date || "").localeCompare(b.session_date || "") || sortByTime(a,b));
-    upcoming.sort((a,b) => (a.session_date || "").localeCompare(b.session_date || "") || sortByTime(a,b));
+    weekly.sort((a,b) => (b.session_date || "").localeCompare(a.session_date || "") || (b.starts_at || "").localeCompare(a.starts_at || ""));
+    upcoming.sort((a,b) => (b.session_date || "").localeCompare(a.session_date || "") || (b.starts_at || "").localeCompare(a.starts_at || ""));
     older.sort((a,b) => (b.session_date || "").localeCompare(a.session_date || "")); // Newest older first
 
     return { today, weekly, upcoming, older };

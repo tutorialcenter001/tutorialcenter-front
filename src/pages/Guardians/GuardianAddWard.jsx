@@ -403,8 +403,19 @@ export default function GuardianAddWard() {
     }
   };
 
-  // ── Toggle Training Selection (Guardian Signup Flow style) ──────────────────
+  // ── Toggle Training Selection (Mutual exclusion for O-Levels) ──────────────────
   const toggleTraining = (courseId) => {
+    const isOlevel = (cId) => {
+      const c = courses.find((item) => Number(item.id) === Number(cId));
+      const title = (c?.title || c?.slug || "").toLowerCase();
+      return (
+        title.includes("waec") ||
+        title.includes("neco") ||
+        title.includes("gce") ||
+        [2, 3, 4].includes(Number(cId))
+      );
+    };
+
     setSelectedCourseIds((prev) => {
       let updated;
       if (prev.includes(courseId)) {
@@ -417,7 +428,16 @@ export default function GuardianAddWard() {
         }
         updated = prev.filter((id) => id !== courseId);
       } else {
-        updated = [...prev, courseId];
+        if (isOlevel(courseId)) {
+          const withoutOtherOlevels = prev.filter((id) => !isOlevel(id));
+          updated = [...withoutOtherOlevels, courseId];
+          setToast({
+            type: "info",
+            message: "Students can choose one O'Level program (WAEC, NECO, or GCE) alongside JAMB.",
+          });
+        } else {
+          updated = [...prev, courseId];
+        }
       }
       return updated;
     });
@@ -2658,20 +2678,20 @@ export default function GuardianAddWard() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-amber-100 dark:border-amber-900/40">
                               <p className="text-[10px] uppercase font-bold text-gray-400">Bank Name</p>
-                              <p className="font-black text-gray-900 dark:text-white mt-0.5">Guaranty Trust Bank (GTBank)</p>
+                              <p className="font-black text-gray-900 dark:text-white mt-0.5">Zenith Bank</p>
                             </div>
                             <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-amber-100 dark:border-amber-900/40">
                               <p className="text-[10px] uppercase font-bold text-gray-400">Account Name</p>
-                              <p className="font-black text-gray-900 dark:text-white mt-0.5">Tutorial Center Nigeria</p>
+                              <p className="font-black text-gray-900 dark:text-white mt-0.5">Tutorial Center LTD</p>
                             </div>
                             <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-amber-100 dark:border-amber-900/40 flex items-center justify-between">
                               <div>
                                 <p className="text-[10px] uppercase font-bold text-gray-400">Account Number</p>
-                                <p className="font-mono font-black text-sm text-gray-900 dark:text-white mt-0.5">0123456789</p>
+                                <p className="font-mono font-black text-sm text-gray-900 dark:text-white mt-0.5">1312411265</p>
                               </div>
                               <button
                                 type="button"
-                                onClick={() => handleCopy("0123456789", "account")}
+                                onClick={() => handleCopy("1312411265", "account")}
                                 className="text-xs font-bold text-[#09314F] dark:text-[#C5A97A] hover:underline"
                               >
                                 {copiedBankField === "account" ? "Copied ✓" : "Copy"}

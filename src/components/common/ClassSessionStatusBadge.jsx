@@ -274,19 +274,19 @@ export const getSessionCardStyles = (session) => {
       isProposed: false,
       isPrivate: false,
       isActive: false,
-      // Card Container: Warm Amber
-      cardBg: "bg-amber-50/80 dark:bg-amber-950/30",
-      cardBorder: "border-amber-300 dark:border-amber-800/60",
-      cardHover: "hover:border-amber-400 hover:shadow-md cursor-pointer",
-      cardClickable: true,
-      accentText: "text-amber-700 dark:text-amber-300",
-      accentBorder: "border-amber-300 dark:border-amber-800",
-      titleClass: "text-amber-900 dark:text-amber-100",
-      timeText: "text-amber-700 dark:text-amber-300/90",
-      subjectBadge: "bg-amber-100/90 dark:bg-amber-900/40 text-amber-800 dark:text-amber-300 border-amber-300 dark:border-amber-800",
-      statusBadge: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/60 dark:text-amber-200",
-      actionButtonClass: "w-full py-2.5 px-4 bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 font-extrabold rounded-xl text-center text-xs uppercase tracking-wider border border-amber-300 dark:border-amber-800",
-      actionText: "Session Rescheduled",
+      // Card Container: Unique Faded Orange (Untouchable & Unstartable)
+      cardBg: "bg-orange-50/70 dark:bg-orange-950/20",
+      cardBorder: "border-orange-300/70 border-dashed dark:border-orange-800/40",
+      cardHover: "opacity-75 cursor-not-allowed select-none",
+      cardClickable: false,
+      accentText: "text-orange-700/80 dark:text-orange-300/80",
+      accentBorder: "border-orange-200 dark:border-orange-800/50",
+      titleClass: "text-orange-950/80 dark:text-orange-100/80 line-through opacity-80",
+      timeText: "text-orange-600/75 dark:text-orange-300/75",
+      subjectBadge: "bg-orange-100/70 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800/50",
+      statusBadge: "bg-orange-100/80 text-orange-800 border-orange-300/80 dark:bg-orange-950/60 dark:text-orange-300",
+      actionButtonClass: "w-full py-2.5 px-4 bg-orange-100/60 dark:bg-orange-950/30 text-orange-700 dark:text-orange-300 font-extrabold rounded-xl text-center text-xs uppercase tracking-wider border border-orange-200 dark:border-orange-800/50 cursor-not-allowed pointer-events-none select-none",
+      actionText: "Rescheduled to New Date",
     };
   }
 
@@ -476,10 +476,10 @@ export default function ClassSessionStatusBadge({
 
       {isRescheduled && !isCancelled && !isProposed && (
         <span
-          className={`inline-flex items-center font-black uppercase tracking-wider rounded-md bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/60 shadow-xs ${sizeClasses}`}
+          className={`inline-flex items-center font-black uppercase tracking-wider rounded-md bg-orange-100/70 text-orange-800 border border-orange-200 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800/60 shadow-xs ${sizeClasses}`}
           title="Session has been rescheduled to an updated date/time"
         >
-          <Icon icon="lucide:calendar-clock" className={`${iconSizes} text-amber-600 dark:text-amber-400 shrink-0`} />
+          <Icon icon="lucide:calendar-clock" className={`${iconSizes} text-orange-600 dark:text-orange-400 shrink-0`} />
           <span>Rescheduled</span>
         </span>
       )}

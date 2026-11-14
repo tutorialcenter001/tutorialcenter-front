@@ -377,10 +377,10 @@ export default function MasterClassList() {
     setShowCreateModal(true);
   };
 
-  // --- FILTERED CLASSES ---
+  // --- FILTERED CLASSES (Latest to Oldest) ---
   const filteredClasses = useMemo(() => {
     if (!Array.isArray(classes)) return [];
-    return classes.filter(cls => {
+    const list = classes.filter(cls => {
       // Status filter
       if (statusFilter !== "all") {
         const s = String(cls.status || "active").toLowerCase().trim();
@@ -402,6 +402,14 @@ export default function MasterClassList() {
       }
 
       return true;
+    });
+
+    // Sort latest created / scheduled first (descending)
+    return list.sort((a, b) => {
+      const dateA = new Date(a.created_at || a.start_date || 0).getTime();
+      const dateB = new Date(b.created_at || b.start_date || 0).getTime();
+      if (dateB !== dateA) return dateB - dateA;
+      return (b.id || 0) - (a.id || 0);
     });
   }, [classes, searchQuery, statusFilter]);
 

@@ -69,14 +69,14 @@ export default function Hero() {
                         
                         <ScrollReveal delay={0.6} direction="up" distance={20}>
                             <div className="flex items-center gap-4">
-                                {/* View Training Button */}
+                                {/* Login Button */}
                                 <div className="w-[236px] h-[56px] rounded-xl p-[2px] bg-gradient-to-r from-[#09314F] to-[#E83831] hover:shadow-md transition-all hover:-translate-y-0.5 shadow-sm">
                                     <Link
-                                        to="/training"
+                                        to="/login"
                                         className="flex items-center justify-center bg-white rounded-[10px] w-full h-full"
                                     >
                                         <span className="bg-gradient-to-r from-[#09314F] to-[#E83831] bg-clip-text text-transparent font-bold">
-                                            View Training
+                                            Login
                                         </span>
                                     </Link>
                                 </div>
@@ -201,11 +201,11 @@ export const MobileHero = ({ currentSlide }) => {
                         <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
                             <div className="w-[236px] h-[56px] sm:flex-1 rounded-xl p-[2px] bg-gradient-to-r from-[#09314F] to-[#E83831] hover:shadow-md transition-all shadow-sm">
                                 <Link
-                                    to="/training"
+                                    to="/login"
                                     className="flex items-center justify-center bg-white rounded-[10px] w-full h-full"
                                 >
                                     <span className="bg-gradient-to-r from-[#09314F] to-[#E83831] bg-clip-text text-transparent font-bold">
-                                        View Training
+                                        Login
                                     </span>
                                 </Link>
                             </div>

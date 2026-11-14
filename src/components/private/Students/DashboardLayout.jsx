@@ -101,7 +101,7 @@ export default function DashboardLayout({
   }, [fetchUnreadCount, fetchPendingSubjectChanges]);
 
   return (
-    <div className="min-h-screen bg-[#E6E9EC] dark:bg-gray-900 flex flex-col lg:block w-full max-w-full overflow-x-hidden">
+    <div className="min-h-screen bg-[#E6E9EC] dark:bg-gray-900 flex flex-col lg:block w-full overflow-x-hidden">
       {/* ===== MOBILE HEADER ===== */}
       <div className="lg:hidden">
         <MobileHeader 
@@ -121,12 +121,17 @@ export default function DashboardLayout({
       {/* ===== UNIFIED MAIN CONTENT ===== */}
       <main
         className={`
-          flex-1
-          w-full max-w-full overflow-x-hidden
+          flex-1 min-w-0
+          w-full
           pt-16 pb-20 px-3 sm:px-4
           lg:p-6 lg:pt-2
           transition-all duration-300
-          ${hideSidebar ? "lg:ml-0" : (isExamActive ? "lg:ml-20" : (leftCollapsed ? "lg:ml-20" : "lg:ml-64"))}
+          ${hideSidebar 
+            ? "lg:ml-0 lg:w-full lg:max-w-full" 
+            : (isExamActive || leftCollapsed 
+              ? "lg:ml-20 lg:w-[calc(100%-5rem)] lg:max-w-[calc(100%-5rem)]" 
+              : "lg:ml-64 lg:w-[calc(100%-16rem)] lg:max-w-[calc(100%-16rem)]"
+            )}
         `}
       >
         {/* Desktop Header Row (Hidden on mobile) */}

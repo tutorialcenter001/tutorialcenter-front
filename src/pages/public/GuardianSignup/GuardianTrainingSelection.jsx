@@ -54,17 +54,49 @@ export default function GuardianTrainingSelection() {
     );
   };
 
-  /* ================= TOGGLE TRAINING SELECTION ================= */
+  /* ================= O-LEVEL IDENTIFIER ================= */
+  const isOlevelCourse = (cId) => {
+    const course = courses.find((c) => Number(c.id) === Number(cId));
+    const title = (course?.title || course?.slug || "").toLowerCase();
+    return (
+      title.includes("waec") ||
+      title.includes("neco") ||
+      title.includes("gce") ||
+      [2, 3, 4].includes(Number(cId))
+    );
+  };
+
+  /* ================= TOGGLE TRAINING SELECTION (MUTUAL EXCLUSION FOR O-LEVELS) ================= */
   const toggleTraining = (studentIndex, courseId) => {
     setStudents((prev) =>
       prev.map((s, i) => {
         if (i !== studentIndex) return s;
         const already = s.selectedTraining.includes(courseId);
+
+        if (already) {
+          return {
+            ...s,
+            selectedTraining: s.selectedTraining.filter((id) => id !== courseId),
+            error: false,
+          };
+        }
+
+        // If selecting an O-Level exam (WAEC, NECO, GCE), deactivate any other O-Level exam
+        if (isOlevelCourse(courseId)) {
+          const withoutOtherOlevels = s.selectedTraining.filter(
+            (id) => !isOlevelCourse(id)
+          );
+          return {
+            ...s,
+            selectedTraining: [...withoutOtherOlevels, courseId],
+            error: false,
+          };
+        }
+
+        // Tertiary exams like JAMB can be toggled independently alongside an O-Level
         return {
           ...s,
-          selectedTraining: already
-            ? s.selectedTraining.filter((id) => id !== courseId)
-            : [...s.selectedTraining, courseId],
+          selectedTraining: [...s.selectedTraining, courseId],
           error: false,
         };
       })
@@ -167,8 +199,8 @@ export default function GuardianTrainingSelection() {
           </div>
 
           <p className="text-gray-500 text-xs md:text-sm mb-6 text-center">
-            Select the examinations each student is about to write. You may
-            select more than one examination per student.
+            Select the examinations each student is preparing for. Students may
+            select one O&apos;Level exam (WAEC, NECO, or GCE) and/or JAMB.
           </p>
 
           {/* PER-STUDENT ACCORDION */}

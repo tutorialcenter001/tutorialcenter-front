@@ -195,14 +195,22 @@ export default function CreateMasterClassModal({ onClose, onSuccess, editClass =
 
   const fetchStaff = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/admin/staffs/all`, {
+      const res = await axios.get(`${API_BASE_URL}/api/admin/staffs/all?active_only=1&exclude_suspended=1`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
       const fetched = res.data?.staffs || res.data?.data || [];
+      const isStaffActive = (s) => {
+        if (!s) return false;
+        if (s.deleted_at) return false;
+        if (s.is_suspended === true || s.is_suspended === 1 || s.is_suspended === "1") return false;
+        const status = String(s.status || s.account_status || s.staff?.status || "active").toLowerCase().trim();
+        if (status === "suspended" || status === "inactive" || status === "disabled" || status === "banned") return false;
+        return true;
+      };
 
-      setTutors(fetched.filter((s) => s.role === "tutor"));
-      setAssistants(fetched.filter((s) => s.role === "advisor"));
+      setTutors(fetched.filter((s) => s.role === "tutor" && isStaffActive(s)));
+      setAssistants(fetched.filter((s) => s.role === "advisor" && isStaffActive(s)));
     } catch (error) {
       console.error("Failed to fetch staff", error);
     }

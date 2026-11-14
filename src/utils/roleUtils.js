@@ -148,3 +148,19 @@ export const canEditExamYear = (role) => {
   return ["admin", "super_admin", "superadmin", "moderator"].includes(targetRole);
 };
 
+/**
+ * Checks if a staff role is authorized to see cancelled classes and sessions.
+ * Strictly restricted to Super Admin, Admin, COO, and Moderator roles.
+ *
+ * @param {string} [role] - Optional role string. If omitted, reads from localStorage.
+ * @returns {boolean}
+ */
+export const canSeeCancelledClasses = (role) => {
+  const targetRole = (role !== undefined && role !== null ? role : localStorage.getItem("staff_role") || "")
+    .toLowerCase()
+    .trim();
+  if (!targetRole) return false;
+  return ["admin", "super_admin", "superadmin", "coo", "moderator"].includes(targetRole);
+};
+
+

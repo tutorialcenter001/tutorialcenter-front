@@ -4,7 +4,7 @@ import axios from "axios";
 import StaffDashboardLayout from "../../../components/private/staffs/DashboardLayout.jsx";
 import CourseAdvisorFeedbackModal from "../../../components/private/staffs/CourseAdvisorFeedbackModal";
 import MasterClassDetailModal from "../../../components/private/staffs/MasterClassDetailModal.jsx";
-import { isAdminStaff, isAdvisorStaff } from "../../../utils/roleUtils";
+import { isAdminStaff, isAdvisorStaff, canSeeCancelledClasses } from "../../../utils/roleUtils";
 import { 
   MagnifyingGlassIcon,
   CalendarIcon,
@@ -282,6 +282,32 @@ export default function CourseAdvisorMasterClass() {
     return false;
   };
 
+  const isTodaySession = useCallback((session) => {
+    if (!session || !session.session_date) return false;
+    const now = new Date();
+    const parts = String(session.session_date).split("T")[0].split("-");
+    if (parts.length < 3) return false;
+    const sYear = parseInt(parts[0], 10);
+    const sMonth = parseInt(parts[1], 10) - 1;
+    const sDay = parseInt(parts[2], 10);
+    return sYear === now.getFullYear() && sMonth === now.getMonth() && sDay === now.getDate();
+  }, []);
+
+  const getSessionCategoryRank = useCallback((s) => {
+    if (isSessionCancelled(s)) return 4;
+    if (isTodaySession(s) && !isPast(s)) return 1; // Due Today (Highest priority)
+    if (!isPast(s)) return 2; // Upcoming to come
+    return 3; // Passed
+  }, [isTodaySession]);
+
+  const getClassRank = useCallback((cls) => {
+    const sList = Array.isArray(cls.sessions) ? cls.sessions : [];
+    if (!sList.length) return 2;
+    if (sList.some(s => isTodaySession(s) && !isPast(s))) return 1; // Has due today
+    if (sList.some(s => !isPast(s))) return 2; // Has upcoming
+    return 3; // All passed
+  }, [isTodaySession]);
+
   // --- DERIVED METRICS FOR ADVISOR ---
   const stats = useMemo(() => {
     const classesCount = scheduleData.classes?.length || 0;
@@ -307,22 +333,38 @@ export default function CourseAdvisorMasterClass() {
     };
   }, [scheduleData]);
 
-  // --- FILTERED DATA ---
+  // --- FILTERED DATA (Prioritizing Due Today -> Upcoming -> Passed) ---
   const filteredClasses = useMemo(() => {
-    if (!searchQuery.trim()) return scheduleData.classes || [];
-    const q = searchQuery.toLowerCase();
-    return (scheduleData.classes || []).filter(c => 
-      c.title?.toLowerCase().includes(q) ||
-      c.subject?.name?.toLowerCase().includes(q) ||
-      (Array.isArray(c.staffs) && c.staffs.some(st => `${st.firstname} ${st.surname}`.toLowerCase().includes(q))) ||
-      (Array.isArray(c.subject?.courses) && c.subject.courses.some(cr => cr.title?.toLowerCase().includes(q)))
-    );
-  }, [scheduleData.classes, searchQuery]);
+    let list = scheduleData.classes || [];
+    if (!canSeeCancelledClasses()) {
+      list = list.filter(c => !isSessionCancelled(c));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(c => 
+        c.title?.toLowerCase().includes(q) ||
+        c.subject?.name?.toLowerCase().includes(q) ||
+        (Array.isArray(c.staffs) && c.staffs.some(st => `${st.firstname} ${st.surname}`.toLowerCase().includes(q))) ||
+        (Array.isArray(c.subject?.courses) && c.subject.courses.some(cr => cr.title?.toLowerCase().includes(q)))
+      );
+    }
+    return [...list].sort((a, b) => {
+      const rankA = getClassRank(a);
+      const rankB = getClassRank(b);
+      if (rankA !== rankB) return rankA - rankB;
+
+      const dateA = new Date(a.created_at || a.start_date || 0).getTime();
+      const dateB = new Date(b.created_at || b.start_date || 0).getTime();
+      return dateB - dateA;
+    });
+  }, [scheduleData.classes, searchQuery, getClassRank]);
 
   const flattenedSessions = useMemo(() => {
     const map = new Map();
+    const canSeeCancelled = canSeeCancelledClasses();
     const add = (s) => {
       if (!s || !s.id) return;
+      if (!canSeeCancelled && isSessionCancelled(s)) return;
       if (!map.has(s.id)) map.set(s.id, s);
     };
 
@@ -333,11 +375,21 @@ export default function CourseAdvisorMasterClass() {
     (scheduleData.sessions || []).forEach(add);
 
     return Array.from(map.values()).sort((a, b) => {
+      const rankA = getSessionCategoryRank(a);
+      const rankB = getSessionCategoryRank(b);
+      if (rankA !== rankB) return rankA - rankB;
+
       const dateA = new Date(`${a.session_date}T${a.starts_at || '00:00'}`);
       const dateB = new Date(`${b.session_date}T${b.starts_at || '00:00'}`);
-      return dateA - dateB;
+
+      // If both are Due or Upcoming, chronological nearest first (dateA - dateB)
+      if (rankA === 1 || rankA === 2) {
+        return dateA - dateB;
+      }
+      // If both are Passed, most recently passed first (dateB - dateA)
+      return dateB - dateA;
     });
-  }, [scheduleData]);
+  }, [scheduleData, getSessionCategoryRank]);
 
   const filteredSessions = useMemo(() => {
     let list = flattenedSessions;
@@ -662,11 +714,17 @@ export default function CourseAdvisorMasterClass() {
                   const statusStr = String(cls.status || "active").toLowerCase().trim();
                   const isClassCancelled = statusStr === "cancelled" || statusStr === "canceled";
                   const isClassProposed = statusStr === "proposed" || statusStr === "rescheduled";
+                  const clsCategory = getClassRank(cls);
+                  const isClsDueToday = clsCategory === 1;
+                  const isClsUpcoming = clsCategory === 2;
+                  const isClsPassed = clsCategory === 3;
                   
                   return (
                     <div
                       key={cls.id}
-                      className="group bg-white dark:bg-gray-800 rounded-[30px] p-6 border border-gray-100 dark:border-gray-700/80 shadow-sm hover:shadow-xl hover:border-[#C5A97A]/40 transition-all flex flex-col justify-between"
+                      className={`group bg-white dark:bg-gray-800 rounded-[30px] p-6 border border-gray-100 dark:border-gray-700/80 shadow-sm hover:shadow-xl hover:border-[#C5A97A]/40 transition-all flex flex-col justify-between ${
+                        isClsPassed ? "opacity-65 hover:opacity-100" : "opacity-100"
+                      }`}
                     >
                       <div className="space-y-4">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -674,6 +732,22 @@ export default function CourseAdvisorMasterClass() {
                             <span className="px-3 py-1 rounded-xl bg-[#09314F]/10 dark:bg-white/10 text-[#09314F] dark:text-[#C5A97A] text-[10px] font-black uppercase tracking-wider">
                               {cls.subject?.name || "Subject"}
                             </span>
+                            {isClsDueToday && (
+                              <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white flex items-center gap-1 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                Due Today
+                              </span>
+                            )}
+                            {isClsUpcoming && !isClassCancelled && (
+                              <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60">
+                                Upcoming
+                              </span>
+                            )}
+                            {isClsPassed && !isClassCancelled && (
+                              <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                                Passed
+                              </span>
+                            )}
                             {Boolean(cls.is_private || cls.is_private === 1 || cls.is_private === "1") && (
                               <span className="px-2.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-amber-500 text-white shadow-xs">
                                 Private 1-on-1
@@ -868,6 +942,8 @@ export default function CourseAdvisorMasterClass() {
               <div className="bg-white dark:bg-gray-800 rounded-[32px] border border-gray-100 dark:border-gray-700 shadow-sm overflow-hidden divide-y divide-gray-100 dark:divide-gray-700/80">
                 {filteredSessions.map((session) => {
                   const sessionIsPast = isPast(session);
+                  const isDueToday = isTodaySession(session) && !sessionIsPast;
+                  const isUpcoming = !sessionIsPast && !isDueToday;
                   const isNext = scheduleData.next_class && String(scheduleData.next_class.id) === String(session.id);
                   const cancelled = isSessionCancelled(session);
                   
@@ -876,12 +952,12 @@ export default function CourseAdvisorMasterClass() {
                       key={session.id}
                       className={`p-4 sm:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all hover:bg-gray-50/70 dark:hover:bg-gray-700/40 ${
                         isNext ? "bg-amber-500/5 dark:bg-amber-500/10 border-l-4 border-l-amber-500" : ""
-                      } ${cancelled ? "opacity-80" : ""}`}
+                      } ${sessionIsPast ? "opacity-60 hover:opacity-100 bg-gray-50/30 dark:bg-gray-900/30" : "opacity-100"} ${cancelled ? "opacity-75" : ""}`}
                     >
                       {/* Left Side: Avatar + Details */}
                       <div className="flex items-start sm:items-center gap-4 min-w-0">
                         <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${
-                          cancelled ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300" : isNext ? "bg-amber-500 text-white shadow-amber-500/20" : sessionIsPast ? "bg-gray-100 dark:bg-gray-700 text-gray-400" : "bg-[#09314F] text-white"
+                          cancelled ? "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300" : isNext ? "bg-amber-500 text-white shadow-amber-500/20" : isDueToday ? "bg-emerald-500 text-white shadow-emerald-500/20" : sessionIsPast ? "bg-gray-100 dark:bg-gray-700 text-gray-400" : "bg-[#09314F] text-white"
                         }`}>
                           {getInitials(session.class?.title || session.title)}
                         </div>
@@ -891,6 +967,22 @@ export default function CourseAdvisorMasterClass() {
                             {isNext && (
                               <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[9px] font-black uppercase tracking-widest">
                                 Next Up
+                              </span>
+                            )}
+                            {isDueToday && !isNext && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-600 text-white text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                Due Today
+                              </span>
+                            )}
+                            {isUpcoming && !isNext && (
+                              <span className="px-2 py-0.5 rounded-md bg-sky-500/10 text-sky-700 dark:bg-sky-950/50 dark:text-sky-300 border border-sky-400/30 text-[9px] font-black uppercase tracking-wider">
+                                Upcoming
+                              </span>
+                            )}
+                            {sessionIsPast && (
+                              <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 text-[9px] font-black uppercase tracking-wider">
+                                Passed
                               </span>
                             )}
                             <span className="px-2.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-slate-700 dark:text-gray-300 text-[10px] font-black uppercase tracking-wider">

@@ -7,6 +7,7 @@ import { Icon } from "@iconify/react";
 import EmbeddedVideoModal from "../../components/private/EmbeddedVideoModal.jsx";
 import ClassSessionStatusBadge, {
   isSessionCancelled,
+  isSessionRescheduled,
   isSessionProposed,
   hasSessionRecording,
   getSessionCardStyles,
@@ -186,8 +187,9 @@ export default function StudentCalendar() {
     
     const addSession = (s, parentClass = null) => {
       if (!s) return;
+      if (isSessionCancelled(s) || (parentClass && isSessionCancelled(parentClass))) return;
       const normalized = normalizeSession(s, parentClass);
-      if (!normalized) return;
+      if (!normalized || isSessionCancelled(normalized)) return;
       const isDuplicate = list.some(item => {
         if (normalized.id && item.id) return item.id === normalized.id;
         return item.title === normalized.title && item.session_date === normalized.session_date && item.starts_at === normalized.starts_at;
@@ -348,6 +350,7 @@ export default function StudentCalendar() {
   const getSessionsForDate = useCallback((date) => {
     const targetYMD = getAfricanDateYMD(date);
     return sessions.filter((s) => {
+      if (isSessionCancelled(s)) return false;
       return getAfricanDateYMD(s.session_date) === targetYMD;
     });
   }, [sessions]);
@@ -355,6 +358,7 @@ export default function StudentCalendar() {
   const getSessionsForDateAndHour = useCallback((date, hour) => {
     const targetYMD = getAfricanDateYMD(date);
     return sessions.filter((s) => {
+      if (isSessionCancelled(s)) return false;
       if (getAfricanDateYMD(s.session_date) !== targetYMD) return false;
       const startHour = parseInt((s.starts_at || "00:00").split(":")[0], 10);
       return startHour === hour;
@@ -637,6 +641,7 @@ export default function StudentCalendar() {
                           <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] pr-0.5">
                             {daySessions.slice(0, 3).map((s, sIdx) => {
                               const cancelled = isSessionCancelled(s);
+                              const rescheduled = isSessionRescheduled(s);
                               const proposed = isSessionProposed(s);
                               const hasRec = hasSessionRecording(s);
                               const isPrivate = Boolean(s.is_private || s.class?.is_private);
@@ -646,12 +651,14 @@ export default function StudentCalendar() {
                                   key={s.id || sIdx}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    if (!cancelled) setSelectedSession(s);
+                                    if (!cancelled && !rescheduled) setSelectedSession(s);
                                   }}
-                                  disabled={cancelled}
+                                  disabled={cancelled || rescheduled}
                                   className={`w-full text-left px-2 py-1 text-[10px] font-bold rounded border transition-opacity flex items-center justify-between gap-1 ${
                                     cancelled
                                       ? "bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60 line-through opacity-75 cursor-not-allowed select-none"
+                                      : rescheduled
+                                      ? "bg-orange-50/70 text-orange-800 border-orange-300/80 border-dashed dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800/50 line-through opacity-75 cursor-not-allowed select-none"
                                       : isPrivate
                                       ? "bg-amber-50 text-amber-950 border-amber-400 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-500/70 shadow-2xs hover:opacity-90 ring-1 ring-amber-400/30"
                                       : proposed
@@ -661,7 +668,7 @@ export default function StudentCalendar() {
                                 >
                                   <span className="truncate flex-1">{s.class?.title || s.title}</span>
                                   <div className="flex items-center gap-0.5 shrink-0">
-                                    {isPrivate && !cancelled && (
+                                    {isPrivate && !cancelled && !rescheduled && (
                                       <span className="text-[8px] font-black uppercase text-amber-800 dark:text-amber-200 px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/60 border border-amber-300/80 dark:border-amber-700">
                                         1:1
                                       </span>
@@ -671,7 +678,12 @@ export default function StudentCalendar() {
                                         CAN
                                       </span>
                                     )}
-                                    {proposed && !cancelled && (
+                                    {rescheduled && !cancelled && (
+                                      <span className="text-[8px] font-black uppercase text-orange-700 dark:text-orange-300 no-underline px-1 py-0.2 rounded bg-orange-100 dark:bg-orange-900/60 border border-orange-300/70">
+                                        RESCHED
+                                      </span>
+                                    )}
+                                    {proposed && !cancelled && !rescheduled && (
                                       <span className="text-[8px] font-black uppercase text-amber-700 dark:text-[#E5C378]">
                                         PROP
                                       </span>
@@ -759,6 +771,7 @@ export default function StudentCalendar() {
                           <div className="p-1 relative border-r border-gray-100 dark:border-[#1a4a75]/10 bg-white dark:bg-transparent flex flex-col gap-1">
                             {getSessionsForDateAndHour(currentDate, hour).map((s, sIdx) => {
                               const cancelled = isSessionCancelled(s);
+                              const rescheduled = isSessionRescheduled(s);
                               const proposed = isSessionProposed(s);
                               const hasRec = hasSessionRecording(s);
                               const isPrivate = Boolean(s.is_private || s.class?.is_private);
@@ -766,11 +779,13 @@ export default function StudentCalendar() {
                               return (
                                 <button
                                   key={s.id || sIdx}
-                                  onClick={() => !cancelled && setSelectedSession(s)}
-                                  disabled={cancelled}
+                                  onClick={() => (!cancelled && !rescheduled) && setSelectedSession(s)}
+                                  disabled={cancelled || rescheduled}
                                   className={`w-full text-left p-2.5 rounded-xl border shadow-sm transition-all ${
                                     cancelled
                                       ? "bg-rose-50/90 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60 opacity-80 cursor-not-allowed select-none line-through"
+                                      : rescheduled
+                                      ? "bg-orange-50/70 text-orange-800 border-orange-300/80 border-dashed dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800/50 opacity-80 cursor-not-allowed select-none line-through"
                                       : isPrivate
                                       ? "bg-amber-50/90 text-amber-950 border-amber-400 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-500/70 hover:shadow-md cursor-pointer ring-1 ring-amber-400/30"
                                       : proposed
@@ -779,9 +794,9 @@ export default function StudentCalendar() {
                                   }`}
                                 >
                                   <div className="flex items-center justify-between gap-2">
-                                    <span className={`text-xs font-extrabold truncate ${cancelled ? "line-through opacity-75" : ""}`}>{s.class?.title || s.title}</span>
+                                    <span className={`text-xs font-extrabold truncate ${cancelled || rescheduled ? "line-through opacity-75" : ""}`}>{s.class?.title || s.title}</span>
                                     <div className="flex items-center gap-1 shrink-0">
-                                      {isPrivate && !cancelled && (
+                                      {isPrivate && !cancelled && !rescheduled && (
                                         <span className="text-[9px] font-black uppercase text-white px-1.5 py-0.5 rounded bg-gradient-to-r from-amber-500 to-amber-600 shadow-2xs">
                                           1-on-1
                                         </span>
@@ -816,6 +831,7 @@ export default function StudentCalendar() {
                               >
                                 {cellSessions.map((s, sIdx) => {
                                   const cancelled = isSessionCancelled(s);
+                                  const rescheduled = isSessionRescheduled(s);
                                   const proposed = isSessionProposed(s);
                                   const hasRec = hasSessionRecording(s);
                                   const isPrivate = Boolean(s.is_private || s.class?.is_private);
@@ -823,11 +839,13 @@ export default function StudentCalendar() {
                                   return (
                                     <button
                                       key={s.id || sIdx}
-                                      onClick={() => !cancelled && setSelectedSession(s)}
-                                      disabled={cancelled}
+                                      onClick={() => (!cancelled && !rescheduled) && setSelectedSession(s)}
+                                      disabled={cancelled || rescheduled}
                                       className={`w-full text-left p-1 text-[9px] font-bold rounded border truncate transition-all flex items-center justify-between gap-1 ${
                                         cancelled
                                           ? "opacity-75 line-through bg-rose-50 border-rose-300 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/60 cursor-not-allowed select-none"
+                                          : rescheduled
+                                          ? "opacity-75 line-through bg-orange-50/70 border-orange-300/80 border-dashed text-orange-800 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-800/50 cursor-not-allowed select-none"
                                           : isPrivate
                                           ? "bg-amber-50 border-amber-400 text-amber-950 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-500/70 hover:opacity-90 ring-1 ring-amber-400/30"
                                           : proposed
@@ -837,13 +855,14 @@ export default function StudentCalendar() {
                                     >
                                       <span className="truncate flex-1">{s.class?.title || s.title}</span>
                                       <div className="flex items-center gap-0.5 shrink-0">
-                                        {isPrivate && !cancelled && (
+                                        {isPrivate && !cancelled && !rescheduled && (
                                           <span className="text-[8px] font-black text-amber-800 dark:text-amber-200 px-1 py-0.2 rounded bg-amber-200/80 dark:bg-amber-900/60 border border-amber-300/80 uppercase">
                                             1:1
                                           </span>
                                         )}
                                         {cancelled && <span className="text-[8px] font-black text-rose-600 uppercase">CAN</span>}
-                                        {proposed && !cancelled && <span className="text-[8px] font-black text-amber-700 dark:text-[#E5C378] uppercase">PROP</span>}
+                                        {rescheduled && !cancelled && <span className="text-[8px] font-black text-orange-700 dark:text-orange-300 uppercase">RESCHED</span>}
+                                        {proposed && !cancelled && !rescheduled && <span className="text-[8px] font-black text-amber-700 dark:text-[#E5C378] uppercase">PROP</span>}
                                         {hasRec && <Icon icon="lucide:play-circle" className="w-2.5 h-2.5 text-purple-600 shrink-0" />}
                                       </div>
                                     </button>
@@ -1329,6 +1348,10 @@ export default function StudentCalendar() {
                 {isSessionCancelled(selectedSession) ? (
                   <div className="w-full py-3.5 bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300 font-extrabold rounded-xl text-center text-xs uppercase tracking-wider border border-rose-200 dark:border-rose-900">
                     Session Cancelled
+                  </div>
+                ) : isSessionRescheduled(selectedSession) ? (
+                  <div className="w-full py-3.5 bg-orange-100/70 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300 font-extrabold rounded-xl text-center text-xs uppercase tracking-wider border border-orange-200 dark:border-orange-800">
+                    Session Rescheduled to New Date
                   </div>
                 ) : isSubscriptionExpired ? (
                   <button
